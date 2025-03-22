@@ -1,13 +1,10 @@
 "use client";
 
 import Image from "next/image";
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-
 import { cn } from "@/lib/utils";
-// import { vapi } from "@/lib/vapi.sdk";
-// import { interviewer } from "@/constants";
-// import { createFeedback } from "@/lib/actions/general.action";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { vapi } from "@/lib/vapi.sdk";
 
 enum CallStatus {
   INACTIVE = "INACTIVE",
@@ -16,149 +13,118 @@ enum CallStatus {
   FINISHED = "FINISHED",
 }
 
-// interface SavedMessage {
-//   role: "user" | "system" | "assistant";
-//   content: string;
-// }
+interface SavedMessage {
+  role: "user" | "system" | "assistant";
+  content: string;
+}
 
-const Agent = ({
-  userName,
-  userId,
-  interviewId,
-  feedbackId,
-  type,
-  questions,
-}: AgentProps) => {
+const Agent = ({ userName, userId, type }: AgentProps) => {
   const router = useRouter();
-  const [callStatus, setCallStatus] = useState<CallStatus>(CallStatus.INACTIVE);
-  // const [messages, setMessages] = useState<SavedMessage[]>([]);
-  // const [lastMessage, setLastMessage] = useState<string>("");
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const messages = [
-    "Whats your name?",
-    "My names is John Doe, nice to meet you!",
-  ];
-  const lastMessage = messages[messages.length - 1];
+  const [callStatus, setCallStatus] = useState<CallStatus>(CallStatus.INACTIVE);
+  const [messages, setMessages] = useState<SavedMessage[]>([]);
 
-  //   useEffect(() => {
-  //     const onCallStart = () => {
-  //       setCallStatus(CallStatus.ACTIVE);
-  //     };
+  useEffect(() => {
+    const onCallStart = () => setCallStatus(CallStatus.ACTIVE);
+    const onCallEnd = async () => {
+      setCallStatus(CallStatus.FINISHED);
 
-  //     const onCallEnd = () => {
-  //       setCallStatus(CallStatus.FINISHED);
-  //     };
+      console.log("Call ended. Messages:", messages);
+      console.log("UserId:", userId);
+      console.log("Type:", type);
 
-  //     const onMessage = (message: Message) => {
-  //       if (message.type === "transcript" && message.transcriptType === "final") {
-  //         const newMessage = { role: message.role, content: message.transcript };
-  //         setMessages((prev) => [...prev, newMessage]);
-  //       }
-  //     };
+      // Save transcript to Firebase when call ends
+      if (messages.length > 0 && userId) {
+        try {
+          const response = await fetch("/api/feedback", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              userId,
+              transcript: messages,
+              type,
+            }),
+          });
 
-  //     const onSpeechStart = () => {
-  //       console.log("speech start");
-  //       setIsSpeaking(true);
-  //     };
+          const data = await response.json();
+          console.log("Save response:", data);
 
-  //     const onSpeechEnd = () => {
-  //       console.log("speech end");
-  //       setIsSpeaking(false);
-  //     };
+          if (!response.ok) {
+            console.error("Failed to save interview transcript:", data);
+          }
+        } catch (error) {
+          console.error("Error saving interview transcript:", error);
+        }
+      } else {
+        console.log("Skipping save - no messages or missing userId");
+      }
+    };
 
-  //     const onError = (error: Error) => {
-  //       console.log("Error:", error);
-  //     };
+    const onMessage = (message: Message) => {
+      if (message.type === "transcript" && message.transcriptType === "final") {
+        const newMessage = { role: message.role, content: message.transcript };
 
-  //     vapi.on("call-start", onCallStart);
-  //     vapi.on("call-end", onCallEnd);
-  //     vapi.on("message", onMessage);
-  //     vapi.on("speech-start", onSpeechStart);
-  //     vapi.on("speech-end", onSpeechEnd);
-  //     vapi.on("error", onError);
+        setMessages((prev) => [...prev, newMessage]);
+      }
+    };
 
-  //     return () => {
-  //       vapi.off("call-start", onCallStart);
-  //       vapi.off("call-end", onCallEnd);
-  //       vapi.off("message", onMessage);
-  //       vapi.off("speech-start", onSpeechStart);
-  //       vapi.off("speech-end", onSpeechEnd);
-  //       vapi.off("error", onError);
-  //     };
-  //   }, []);
+    const onSpeechStart = () => setIsSpeaking(true);
+    const onSpeechEnd = () => setIsSpeaking(false);
 
-  //   useEffect(() => {
-  //     if (messages.length > 0) {
-  //       setLastMessage(messages[messages.length - 1].content);
-  //     }
+    const onError = (error: Error) => console.log("Error", error);
 
-  //     const handleGenerateFeedback = async (messages: SavedMessage[]) => {
-  //       console.log("handleGenerateFeedback");
+    vapi.on("call-start", onCallStart);
+    vapi.on("call-end", onCallEnd);
+    vapi.on("message", onMessage);
+    vapi.on("speech-start", onSpeechStart);
+    vapi.on("speech-end", onSpeechEnd);
+    vapi.on("error", onError);
 
-  //       const { success, feedbackId: id } = await createFeedback({
-  //         interviewId: interviewId!,
-  //         userId: userId!,
-  //         transcript: messages,
-  //         feedbackId,
-  //       });
+    return () => {
+      vapi.off("call-start", onCallStart);
+      vapi.off("call-end", onCallEnd);
+      vapi.off("message", onMessage);
+      vapi.off("speech-start", onSpeechStart);
+      vapi.off("speech-end", onSpeechEnd);
+      vapi.off("error", onError);
+    };
+  }, [messages, userId, type]);
 
-  //       if (success && id) {
-  //         router.push(`/interview/${interviewId}/feedback`);
-  //       } else {
-  //         console.log("Error saving feedback");
-  //         router.push("/");
-  //       }
-  //     };
+  useEffect(() => {
+    if (callStatus === CallStatus.FINISHED) router.push("/");
+  }, [messages, callStatus, type, userId]);
 
-  //     if (callStatus === CallStatus.FINISHED) {
-  //       if (type === "generate") {
-  //         router.push("/");
-  //       } else {
-  //         handleGenerateFeedback(messages);
-  //       }
-  //     }
-  //   }, [messages, callStatus, feedbackId, interviewId, router, type, userId]);
+  const handleCall = async () => {
+    setCallStatus(CallStatus.CONNECTING);
 
-  //   const handleCall = async () => {
-  //     setCallStatus(CallStatus.CONNECTING);
+    await vapi.start(process.env.NEXT_PUBLIC_VAPI_WORKFLOW_ID!, {
+      variableValues: {
+        username: userName,
+        userid: userId,
+      },
+    });
+  };
 
-  //     if (type === "generate") {
-  //       await vapi.start(process.env.NEXT_PUBLIC_VAPI_WORKFLOW_ID!, {
-  //         variableValues: {
-  //           username: userName,
-  //           userid: userId,
-  //         },
-  //       });
-  //     } else {
-  //       let formattedQuestions = "";
-  //       if (questions) {
-  //         formattedQuestions = questions
-  //           .map((question) => `- ${question}`)
-  //           .join("\n");
-  //       }
+  const handleDisconnect = async () => {
+    setCallStatus(CallStatus.FINISHED);
 
-  //       await vapi.start(interviewer, {
-  //         variableValues: {
-  //           questions: formattedQuestions,
-  //         },
-  //       });
-  //     }
-  //   };
+    vapi.stop();
+  };
 
-  //   const handleDisconnect = () => {
-  //     setCallStatus(CallStatus.FINISHED);
-  //     vapi.stop();
-  //   };
+  const latestMessage = messages[messages.length - 1]?.content;
+  const isCallInactiveOrFinished =
+    callStatus === CallStatus.INACTIVE || callStatus === CallStatus.FINISHED;
 
   return (
     <>
       <div className="call-view">
-        {/* AI Interviewer Card */}
         <div className="card-interviewer">
           <div className="avatar">
             <Image
               src="/ai-avatar.png"
-              alt="profile-image"
+              alt="vapi"
               width={65}
               height={54}
               className="object-cover"
@@ -168,32 +134,30 @@ const Agent = ({
           <h3>AI Interviewer</h3>
         </div>
 
-        {/* User Profile Card */}
         <div className="card-border">
           <div className="card-content">
             <Image
               src="/user-avatar.png"
-              alt="profile-image"
-              width={539}
-              height={539}
+              alt="user avatar"
+              width={540}
+              height={540}
               className="rounded-full object-cover size-[120px]"
             />
             <h3>{userName}</h3>
           </div>
         </div>
       </div>
-
       {messages.length > 0 && (
         <div className="transcript-border">
           <div className="transcript">
             <p
-              key={lastMessage}
+              key={latestMessage}
               className={cn(
                 "transition-opacity duration-500 opacity-0",
                 "animate-fadeIn opacity-100"
               )}
             >
-              {lastMessage}
+              {latestMessage}
             </p>
           </div>
         </div>
@@ -201,7 +165,7 @@ const Agent = ({
 
       <div className="w-full flex justify-center">
         {callStatus !== "ACTIVE" ? (
-          <button className="relative btn-call" onClick={() => handleCall()}>
+          <button className="relative btn-call" onClick={handleCall}>
             <span
               className={cn(
                 "absolute animate-ping rounded-full opacity-75",
@@ -209,14 +173,10 @@ const Agent = ({
               )}
             />
 
-            <span className="relative">
-              {callStatus === "INACTIVE" || callStatus === "FINISHED"
-                ? "Call"
-                : ". . ."}
-            </span>
+            <span>{isCallInactiveOrFinished ? "Call" : ". . ."}</span>
           </button>
         ) : (
-          <button className="btn-disconnect" onClick={() => handleDisconnect()}>
+          <button className="btn-disconnect" onClick={handleDisconnect}>
             End
           </button>
         )}
@@ -224,5 +184,4 @@ const Agent = ({
     </>
   );
 };
-
 export default Agent;
