@@ -6,12 +6,20 @@ import { z } from "zod";
 import Image from "next/image";
 import Link from "next/link";
 import { toast } from "sonner";
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  AuthError,
+} from "firebase/auth";
+import { auth } from "@/firebase/client";
+import { signIn, signUp } from "@/lib/actions/auth.action";
+import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Form } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
 import FormField from "./FormField";
 import { useRouter } from "next/navigation";
+
 const authFormSchema = (type: FormType) => {
   return z.object({
     name: type === "sign-up" ? z.string().min(3) : z.string().optional(),
@@ -22,6 +30,7 @@ const authFormSchema = (type: FormType) => {
 
 const AuthForm = ({ type }: { type: FormType }) => {
   const router = useRouter();
+  const [isLoading, setIsLoading] = useState(false);
   const formSchema = authFormSchema(type);
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -32,21 +41,103 @@ const AuthForm = ({ type }: { type: FormType }) => {
     },
   });
 
-  // 2. Define a submit handler.
-  function onSubmit(values: z.infer<typeof formSchema>) {
+  const handleFirebaseError = (error: AuthError) => {
+    console.error("Firebase error:", error);
+    switch (error.code) {
+      case "auth/configuration-not-found":
+        toast.error("Firebase configuration error. Please try again later.");
+        break;
+      case "auth/email-already-in-use":
+        toast.error(
+          "This email is already registered. Please sign in instead."
+        );
+        break;
+      case "auth/invalid-email":
+        toast.error("Invalid email address.");
+        break;
+      case "auth/operation-not-allowed":
+        toast.error(
+          "Email/password accounts are not enabled. Please contact support."
+        );
+        break;
+      case "auth/weak-password":
+        toast.error("Please choose a stronger password.");
+        break;
+      case "auth/user-disabled":
+        toast.error("This account has been disabled. Please contact support.");
+        break;
+      case "auth/user-not-found":
+        toast.error("No account found with this email. Please sign up first.");
+        break;
+      case "auth/wrong-password":
+        toast.error("Incorrect password. Please try again.");
+        break;
+      default:
+        toast.error("An error occurred. Please try again.");
+    }
+  };
+
+  const onSubmit = async (data: z.infer<typeof formSchema>) => {
     try {
+      setIsLoading(true);
+
       if (type === "sign-up") {
+        const { name, email, password } = data;
+
+        const userCredential = await createUserWithEmailAndPassword(
+          auth,
+          email,
+          password
+        );
+
+        const result = await signUp({
+          uid: userCredential.user.uid,
+          name: name!,
+          email,
+          password,
+        });
+
+        if (!result.success) {
+          toast.error(result.message);
+          return;
+        }
+
         toast.success("Account created successfully. Please sign in.");
         router.push("/sign-in");
       } else {
-        toast.success("sign in success.");
+        const { email, password } = data;
+
+        const userCredential = await signInWithEmailAndPassword(
+          auth,
+          email,
+          password
+        );
+
+        const idToken = await userCredential.user.getIdToken();
+        if (!idToken) {
+          toast.error("Sign in Failed. Please try again.");
+          return;
+        }
+
+        await signIn({
+          email,
+          idToken,
+        });
+
+        toast.success("Signed in successfully.");
         router.push("/");
       }
-    } catch (error) {
-      console.log(error);
-      toast.error(`There was an error: ${error}`);
+    } catch (error: any) {
+      if (error.code) {
+        handleFirebaseError(error);
+      } else {
+        console.error("Authentication error:", error);
+        toast.error("An unexpected error occurred. Please try again.");
+      }
+    } finally {
+      setIsLoading(false);
     }
-  }
+  };
   const isSignIn = type === "sign-in";
   return (
     <div className="card-border lg:min-w-[566px]">
@@ -84,8 +175,12 @@ const AuthForm = ({ type }: { type: FormType }) => {
               placeholder="Enter your password"
               type="password"
             />
-            <Button className="btn" type="submit">
-              {isSignIn ? "Sign in" : "Create an Account"}
+            <Button className="btn" type="submit" disabled={isLoading}>
+              {isLoading
+                ? "Loading..."
+                : isSignIn
+                ? "Sign in"
+                : "Create an Account"}
             </Button>
           </form>
         </Form>
