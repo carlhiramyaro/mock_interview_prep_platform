@@ -1,5 +1,6 @@
 import Agent from "@/components/Agent";
 import React from "react";
+import { useEffect } from "react";
 
 const page = () => {
   return (
