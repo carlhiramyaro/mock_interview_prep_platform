@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { vapi } from "@/lib/vapi.sdk";
+import { interviewer } from "@/constants";
 
 enum CallStatus {
   INACTIVE = "INACTIVE",
@@ -18,7 +19,13 @@ interface SavedMessage {
   content: string;
 }
 
-const Agent = ({ userName, userId, type }: AgentProps) => {
+const Agent = ({
+  userName,
+  userId,
+  type,
+  interviewId,
+  questions,
+}: AgentProps) => {
   const router = useRouter();
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [callStatus, setCallStatus] = useState<CallStatus>(CallStatus.INACTIVE);
@@ -26,41 +33,7 @@ const Agent = ({ userName, userId, type }: AgentProps) => {
 
   useEffect(() => {
     const onCallStart = () => setCallStatus(CallStatus.ACTIVE);
-    const onCallEnd = async () => {
-      setCallStatus(CallStatus.FINISHED);
-
-      console.log("Call ended. Messages:", messages);
-      console.log("UserId:", userId);
-      console.log("Type:", type);
-
-      // Save transcript to Firebase when call ends
-      if (messages.length > 0 && userId) {
-        try {
-          const response = await fetch("/api/feedback", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              userId,
-              transcript: messages,
-              type,
-            }),
-          });
-
-          const data = await response.json();
-          console.log("Save response:", data);
-
-          if (!response.ok) {
-            console.error("Failed to save interview transcript:", data);
-          }
-        } catch (error) {
-          console.error("Error saving interview transcript:", error);
-        }
-      } else {
-        console.log("Skipping save - no messages or missing userId");
-      }
-    };
+    const onCallEnd = () => setCallStatus(CallStatus.FINISHED);
 
     const onMessage = (message: Message) => {
       if (message.type === "transcript" && message.transcriptType === "final") {
@@ -90,21 +63,60 @@ const Agent = ({ userName, userId, type }: AgentProps) => {
       vapi.off("speech-end", onSpeechEnd);
       vapi.off("error", onError);
     };
-  }, [messages, userId, type]);
+  }, []);
+
+  const handleGenerateFeedback = async (messages: SavedMessage[]) => {
+    console.log("Generate feedback here.");
+
+    // TODO: Create a server action that generates feedback
+    const { success, id } = {
+      success: true,
+      id: "feedback-id",
+    };
+
+    if (success && id) {
+      router.push(`/interview/${interviewId}/feedback`);
+    } else {
+      console.log("Error saving feedback");
+      router.push("/");
+    }
+  };
 
   useEffect(() => {
-    if (callStatus === CallStatus.FINISHED) router.push("/");
+    if (callStatus === CallStatus.FINISHED) {
+      if (type === "generate") {
+        router.push("/");
+      } else {
+        handleGenerateFeedback(messages);
+      }
+    }
   }, [messages, callStatus, type, userId]);
 
   const handleCall = async () => {
     setCallStatus(CallStatus.CONNECTING);
 
-    await vapi.start(process.env.NEXT_PUBLIC_VAPI_WORKFLOW_ID!, {
-      variableValues: {
-        username: userName,
-        userid: userId,
-      },
-    });
+    if (type === "generate") {
+      await vapi.start(process.env.NEXT_PUBLIC_VAPI_WORKFLOW_ID!, {
+        variableValues: {
+          username: userName,
+          userid: userId,
+        },
+      });
+    } else {
+      let formattedQuestions = "";
+
+      if (questions) {
+        formattedQuestions = questions
+          .map((question) => `- ${question}`)
+          .join("\n");
+      }
+
+      await vapi.start(interviewer, {
+        variableValues: {
+          questions: formattedQuestions,
+        },
+      });
+    }
   };
 
   const handleDisconnect = async () => {
