@@ -104,10 +104,10 @@ export const interviewer: CreateAssistantDTO = {
   transcriber: {
     provider: "deepgram",
     model: "nova-2",
-    language: "en-US",
+    language: "en",
   },
   voice: {
-    provider: "11labs" as const,
+    provider: "11labs",
     voiceId: "sarah",
     stability: 0.4,
     similarityBoost: 0.8,
@@ -116,7 +116,7 @@ export const interviewer: CreateAssistantDTO = {
     useSpeakerBoost: true,
   },
   model: {
-    provider: "openai" as const,
+    provider: "openai",
     model: "gpt-4",
     messages: [
       {
@@ -136,7 +136,7 @@ Be professional, yet warm and welcoming:
 Use official yet friendly language.
 Keep responses concise and to the point (like in a real voice interview).
 Avoid robotic phrasing—sound natural and conversational.
-Answer the candidate's questions professionally:
+Answer the candidate’s questions professionally:
 
 If asked about the role, company, or expectations, provide a clear and relevant answer.
 If unsure, redirect the candidate to HR for more details.
@@ -145,6 +145,7 @@ Conclude the interview properly:
 Thank the candidate for their time.
 Inform them that the company will reach out soon with feedback.
 End the conversation on a polite and positive note.
+
 
 - Be sure to be professional and polite.
 - Keep all your responses short and simple. Use official language, but be kind and welcoming.
@@ -218,12 +219,12 @@ export const dummyInterviews: Interview[] = [
   {
     id: "2",
     userId: "user1",
-    role: "Frontend Developer",
-    type: "Technical",
-    techstack: ["React", "TypeScript", "Next.js", "Tailwind CSS"],
-    level: "Junior",
-    questions: ["What is React?"],
+    role: "Full Stack Developer",
+    type: "Mixed",
+    techstack: ["Node.js", "Express", "MongoDB", "React"],
+    level: "Senior",
+    questions: ["What is Node.js?"],
     finalized: false,
-    createdAt: "2024-03-15T10:00:00Z",
+    createdAt: "2024-03-14T15:30:00Z",
   },
 ];
