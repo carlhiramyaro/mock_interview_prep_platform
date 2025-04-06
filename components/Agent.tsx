@@ -119,15 +119,10 @@ const Agent = ({
           throw new Error("User ID is required");
         }
 
+        // Only pass the initial variables needed
         const workflowVariables = {
           username: userName,
           userid: userId,
-          // Add these variables that match your Vapi workflow "Gather" step
-          role: "Frontend Developer", // You might want to make this dynamic
-          type: "technical",
-          level: "senior",
-          techstack: "React,TypeScript,Next.js",
-          amount: "5",
         };
 
         console.log(
@@ -161,7 +156,6 @@ const Agent = ({
     } catch (error) {
       console.error("Error starting call:", error);
       setCallStatus(CallStatus.INACTIVE);
-      // You might want to show an error message to the user here
     }
   };
 
