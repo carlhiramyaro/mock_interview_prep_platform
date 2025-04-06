@@ -114,16 +114,36 @@ const Agent = ({
       setCallStatus(CallStatus.CONNECTING);
 
       if (type === "generate") {
-        console.log("Starting generate workflow with:", {
+        if (!userId) {
+          console.error("Missing userId for generate workflow");
+          throw new Error("User ID is required");
+        }
+
+        const workflowVariables = {
           username: userName,
           userid: userId,
-        });
-        await vapi.start(process.env.NEXT_PUBLIC_VAPI_WORKFLOW_ID!, {
-          variableValues: {
-            username: userName,
-            userid: userId,
-          },
-        });
+          // Add these variables that match your Vapi workflow "Gather" step
+          role: "Frontend Developer", // You might want to make this dynamic
+          type: "technical",
+          level: "senior",
+          techstack: "React,TypeScript,Next.js",
+          amount: "5",
+        };
+
+        console.log(
+          "Starting generate workflow with variables:",
+          workflowVariables
+        );
+
+        try {
+          await vapi.start(process.env.NEXT_PUBLIC_VAPI_WORKFLOW_ID!, {
+            variableValues: workflowVariables,
+          });
+          console.log("Vapi workflow started successfully");
+        } catch (vapiError) {
+          console.error("Failed to start Vapi workflow:", vapiError);
+          throw vapiError;
+        }
       } else {
         let formattedQuestions = "";
         if (questions) {
@@ -141,6 +161,7 @@ const Agent = ({
     } catch (error) {
       console.error("Error starting call:", error);
       setCallStatus(CallStatus.INACTIVE);
+      // You might want to show an error message to the user here
     }
   };
 
