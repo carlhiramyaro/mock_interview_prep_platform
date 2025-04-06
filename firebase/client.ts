@@ -19,12 +19,12 @@ const firebaseConfig = {
 };
 
 // Debug: Log the configuration (without sensitive values)
-console.log("Firebase Config:", {
-  ...firebaseConfig,
-  apiKey: firebaseConfig.apiKey ? "***" : undefined,
-  projectId: firebaseConfig.projectId,
-  authDomain: firebaseConfig.authDomain,
-});
+// console.log("Firebase Config:", {
+//   ...firebaseConfig,
+//   apiKey: firebaseConfig.apiKey ? "***" : undefined,
+//   projectId: firebaseConfig.projectId,
+//   authDomain: firebaseConfig.authDomain,
+// });
 
 // Initialize Firebase
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();

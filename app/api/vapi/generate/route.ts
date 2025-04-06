@@ -8,9 +8,37 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const { type, role, level, techstack, amount, userid } = await request.json();
+  console.log("Received POST request to /api/vapi/generate");
 
   try {
+    const { type, role, level, techstack, amount, userid } =
+      await request.json();
+
+    console.log("Request parameters:", {
+      type,
+      role,
+      level,
+      techstack,
+      amount,
+      userid,
+    });
+
+    if (!type || !role || !level || !techstack || !amount || !userid) {
+      console.error("Missing required parameters:", {
+        type,
+        role,
+        level,
+        techstack,
+        amount,
+        userid,
+      });
+      return Response.json(
+        { success: false, error: "Missing required parameters" },
+        { status: 400 }
+      );
+    }
+
+    console.log("Generating questions with Gemini...");
     const { text: questions } = await generateText({
       model: google("gemini-2.0-flash-001"),
       prompt: `Prepare questions for a job interview.
@@ -28,24 +56,59 @@ export async function POST(request: Request) {
     `,
     });
 
+    console.log("Questions generated:", questions);
+
+    let parsedQuestions;
+    try {
+      parsedQuestions = JSON.parse(questions);
+      if (!Array.isArray(parsedQuestions)) {
+        throw new Error("Questions not in array format");
+      }
+    } catch (error) {
+      console.error("Failed to parse questions:", questions);
+      console.error("Parse error:", error);
+      return Response.json(
+        { success: false, error: "Failed to parse generated questions" },
+        { status: 500 }
+      );
+    }
+
     const interview = {
       role,
       type,
       level,
       techstack: techstack.split(","),
-      questions: JSON.parse(questions),
+      questions: parsedQuestions,
       userId: userid,
       finalized: true,
       coverImage: getRandomInterviewCover(),
       createdAt: new Date().toISOString(),
     };
 
-    await db.collection("interviews").add(interview);
+    console.log("Saving interview to Firebase:", interview);
 
-    return Response.json({ success: true }, { status: 200 });
+    try {
+      const docRef = await db.collection("interviews").add(interview);
+      console.log("Interview saved successfully with ID:", docRef.id);
+      return Response.json(
+        { success: true, interviewId: docRef.id },
+        { status: 200 }
+      );
+    } catch (error) {
+      console.error("Failed to save to Firebase:", error);
+      return Response.json(
+        { success: false, error: "Failed to save interview to database" },
+        { status: 500 }
+      );
+    }
   } catch (error) {
-    console.error(error);
-
-    return Response.json({ success: false, error }, { status: 500 });
+    console.error("Error in /api/vapi/generate:", error);
+    return Response.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : "Internal server error",
+      },
+      { status: 500 }
+    );
   }
 }

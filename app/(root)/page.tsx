@@ -12,9 +12,20 @@ import {
 const Page = async () => {
   const user = await getCurrentUser();
 
+  if (!user?.id) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4">
+        <h2>Please sign in to view your interviews</h2>
+        <Button asChild className="btn-primary">
+          <Link href="/sign-in">Sign In</Link>
+        </Button>
+      </div>
+    );
+  }
+
   const [userInterviews, latestInterviews] = await Promise.all([
-    await getInterviewsByUserId(user?.id!),
-    await getLatestInterviews({ userId: user?.id! }),
+    await getInterviewsByUserId(user.id),
+    await getLatestInterviews({ userId: user.id }),
   ]);
 
   const hasPastInterviews = (userInterviews || []).length > 0;
