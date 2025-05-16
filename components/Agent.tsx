@@ -35,6 +35,80 @@ const Agent = ({
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [lastMessage, setLastMessage] = useState<string>("");
 
+  const handleGenerateFeedback = async (messages: SavedMessage[]) => {
+    console.log("handleGenerateFeedback");
+
+    try {
+      const { success, feedbackId: id } = await createFeedback({
+        interviewId: interviewId!,
+        userId: userId!,
+        transcript: messages,
+        feedbackId,
+      });
+
+      if (success && id) {
+        router.push(`/interview/${interviewId}/feedback`);
+      } else {
+        console.log("Error saving feedback");
+        router.push("/");
+      }
+    } catch (error) {
+      console.error("Error generating feedback:", error);
+      router.push("/");
+    }
+  };
+
+  const handleGenerateInterview = async () => {
+    try {
+      // Extract interview details from the conversation
+      const role = messages.find(
+        (m) => m.role === "assistant" && m.content.includes("role")
+      )?.content;
+      const level = messages.find(
+        (m) => m.role === "assistant" && m.content.includes("level")
+      )?.content;
+      const techstack = messages.find(
+        (m) => m.role === "assistant" && m.content.includes("tech stack")
+      )?.content;
+      const type = messages.find(
+        (m) => m.role === "assistant" && m.content.includes("type")
+      )?.content;
+      const amount = messages.find(
+        (m) => m.role === "assistant" && m.content.includes("amount")
+      )?.content;
+
+      if (!role || !level || !techstack || !type || !amount) {
+        console.error("Missing required interview details");
+        router.push("/");
+        return;
+      }
+
+      const response = await fetch("/api/vapi/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          type,
+          role,
+          level,
+          techstack,
+          amount,
+          userid: userId,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to create interview");
+      }
+
+      router.push("/");
+    } catch (error) {
+      console.error("Error creating interview:", error);
+      router.push("/");
+    }
+  };
+
   useEffect(() => {
     const onCallStart = () => {
       setCallStatus(CallStatus.ACTIVE);
@@ -63,6 +137,17 @@ const Agent = ({
 
     const onError = (error: Error) => {
       console.log("Error:", error);
+      if (
+        error.message?.includes("ejected") ||
+        error.message?.includes("ended")
+      ) {
+        setCallStatus(CallStatus.FINISHED);
+        if (messages.length > 0) {
+          handleGenerateFeedback(messages);
+        } else {
+          router.push("/");
+        }
+      }
     };
 
     vapi.on("call-start", onCallStart);
@@ -87,27 +172,9 @@ const Agent = ({
       setLastMessage(messages[messages.length - 1].content);
     }
 
-    const handleGenerateFeedback = async (messages: SavedMessage[]) => {
-      console.log("handleGenerateFeedback");
-
-      const { success, feedbackId: id } = await createFeedback({
-        interviewId: interviewId!,
-        userId: userId!,
-        transcript: messages,
-        feedbackId,
-      });
-
-      if (success && id) {
-        router.push(`/interview/${interviewId}/feedback`);
-      } else {
-        console.log("Error saving feedback");
-        router.push("/");
-      }
-    };
-
     if (callStatus === CallStatus.FINISHED) {
       if (type === "generate") {
-        router.push("/");
+        handleGenerateInterview();
       } else {
         handleGenerateFeedback(messages);
       }
